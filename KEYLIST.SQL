@@ -20,38 +20,49 @@
      READS SQL DATA
      DISALLOW PARALLEL
      NO EXTERNAL ACTION
-     NOT DETERMINISTIC
+     STATEMENT DETERMINISTIC
      SPECIFIC ST_LISTKEY
 
     -- Date Format ISO is required for dates prior to 1940.
     set option COMMIT=*NONE,DATFMT=*ISO,TIMFMT=*HMS
 
 R: BEGIN
-   RETURN  SELECT
-        DBKLIB,
-        DBKFIL,
-        DBKFMT,
-        DBKPOS,
-        case dbkord WHEN 'A' then 'A' ELSE 'D' end,
-        DBKFLD,
-        D.DATA_TYPE,
-        CASE WHEN D.NUMERIC_PRECISION is NULL THEN D.LENGTH
-             ELSE D.NUMERIC_PRECISION end ,
-             NUMERIC_SCALE,
-        D.COLUMN_NAME,
-        D.TABLE_NAME,
-        DBKLB2
-
-  FROM QSYS.QADBKFLD
-         left outer join QSYS2.SYSCOLUMNS D
-           on (DBKFLD,DBKFIL,DBKLIB) =
-              (SYSTEM_COLUMN_NAME,SYSTEM_TABLE_NAME,SYSTEM_TABLE_SCHEMA)
-        WHERE trim(DBKFIL) LIKE upper(file_name) and trim(DBKLIB) IN
-              CASE WHEN library_name = '*LIBL' THEN
-                       (SELECT NAME FROM qsys2.library_list_info
-                        ORDER BY COLNO)
-                   ELSE (upper(library_name)) end
-         ORDER  BY  dbklib,dbkfil,dbkfmt,DBKPOS;
+   RETURN  
+     WITH fileID (fileName, libName, fName) AS
+    (
+     SELECT OBJLONGNAME,
+            objlongschema,
+            objname
+     FROM TABLE (object_statistics(upper(LIBRARY_NAME), '*FILE',
+                                   upper(FILE_NAME))) OD
+    )
+    SELECT DBKLIB,
+           DBKFIL,
+           DBKFMT,
+           DBKPOS,
+           CASE dbkord
+             WHEN 'A' THEN 'A'
+             ELSE 'D'
+           END,
+           DBKFLD,
+           D.DATA_TYPE,
+           CASE
+             WHEN D.NUMERIC_PRECISION IS NULL THEN D.LENGTH
+             ELSE D.NUMERIC_PRECISION
+           END,
+           NUMERIC_SCALE,
+           D.COLUMN_NAME,
+           D.TABLE_NAME,
+           DBKLB2
+      FROM QSYS.QADBKFLD KF
+           INNER JOIN FILEID FD
+             ON (TRIM(KF.DBKFIL), TRIM(KF.DBKLB2)) = (FD.fName, FD.LIBNAME)
+           LEFT OUTER JOIN QSYS2.SYSCOLUMNS D
+             ON (KF.DBKFLD, KF.DBKFIL, KF.DBKLIB) =
+                (D.SYSTEM_COLUMN_NAME,
+                 D.SYSTEM_TABLE_NAME,
+                 D.SYSTEM_TABLE_SCHEMA)
+      ORDER  BY  KF.dbklib,KF.dbkfil,KF.dbkfmt,KF.DBKPOS;   
  end ;
 
 
@@ -64,4 +75,6 @@ comment on specific function sqltools.ST_LISTKEY IS
 comment on parameter specific function sqltools.ST_LISTKEY
 ( LIBRARY_NAME is 'The library/schema that contains the table.
   if unspecified, the default is *LIBL',
-  FILE_NAME is 'The name of the database file whose key list is returned.');  
+  FILE_NAME is 'The name of the database file whose key list is returned.
+   NOTE: On IBM i V7R3 and later, this parameter may be generic.'
+);

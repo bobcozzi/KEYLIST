@@ -24,10 +24,9 @@
      SPECIFIC ST_LISTKEY
 
     -- Date Format ISO is required for dates prior to 1940.
-    set option COMMIT=*NONE,DATFMT=*ISO,TIMFMT=*HMS,
-               BINDOPT = 'BNDSRVPGM(SQLTOOLS/SQLTOOLS)'
-BEGIN
+    set option COMMIT=*NONE,DATFMT=*ISO,TIMFMT=*HMS
 
+R: BEGIN
    RETURN  SELECT
         DBKLIB,
         DBKFIL,
